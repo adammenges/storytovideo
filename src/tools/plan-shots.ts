@@ -120,6 +120,7 @@ const perSceneShotSchema = z.object({
   soundEffects: z.string(),
   cameraDirection: z.string(),
   charactersPresent: z.array(z.string()),
+  objectsPresent: z.array(z.string()),
   location: z.string(),
   continuousFromPrevious: z.boolean(),
 });
@@ -173,6 +174,7 @@ export function planShotsForScene(
   // Process shots: assign shotNumber, sceneNumber, ensure shotType
   const processedShots: Shot[] = shots.map((shot) => ({
     ...shot,
+    objectsPresent: shot.objectsPresent ?? [],
     shotNumber: nextShotNumber++,
     sceneNumber,
     shotType: "first_last_frame" as const,

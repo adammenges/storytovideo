@@ -17,6 +17,7 @@ import { verifyOutput, verifyOutputTool } from "./tools/verify-output";
 import { assembleVideo, assembleVideoTool } from "./tools/assemble-video";
 import { saveState, loadState, saveStateTool } from "./tools/state";
 import { analyzeClipPacing } from "./tools/analyze-video-pacing";
+import { discoverUserAssets } from "./tools/discover-assets";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -214,6 +215,7 @@ function compactState(state: PipelineState, stageName?: string): string {
         soundEffects: s.soundEffects,
         cameraDirection: s.cameraDirection,
         charactersPresent: s.charactersPresent,
+        objectsPresent: s.objectsPresent ?? [],
         location: s.location,
         continuousFromPrevious: s.continuousFromPrevious,
       })),
@@ -598,7 +600,7 @@ After receiving the analysis, respond with a brief summary of what was found.`;
       description: analyzeStoryTool.description,
       inputSchema: analyzeStoryTool.parameters,
       execute: wrapToolExecute("analysis", "analyzeStory", async (params: z.infer<typeof analyzeStoryTool.parameters>) => {
-        const result = await analyzeStory(params.storyText);
+        const result = await analyzeStory(params.storyText, state.userProvidedAssets);
         state.storyAnalysis = result;
         return result;
       }, options.onToolError, options.abortSignal),
@@ -690,6 +692,8 @@ For each scene:
 7. Write action prompts for video generation. In actionPrompt fields, describe characters by their visual appearance (e.g., "the man in the blue suit", "the woman with red hair") rather than by name. Character names in video prompts trigger content safety filters.
 8. Include dialogue as quoted speech if present
 ${fixedCameraGuidance}
+10. For each shot, populate the objectsPresent array with the names of any objects/products from the story analysis that are visible or relevant in that shot. If no objects are present, use an empty array.
+${(state.storyAnalysis?.objects?.length ?? 0) > 0 ? `\nKnown objects in this story: ${state.storyAnalysis!.objects.map(o => o.name).join(", ")}. Make sure shots that feature these objects include them in objectsPresent and mention them prominently in frame prompts so reference images can be used.` : ""}
 
 After planning all scenes, respond with a brief summary of the shots planned.`;
 
@@ -743,6 +747,50 @@ async function runAssetGenerationStage(
 
   const analysis = state.storyAnalysis;
 
+  // Initialize asset library if needed
+  if (!state.assetLibrary) {
+    state.assetLibrary = { characterImages: {}, locationImages: {}, objectImages: {} };
+  }
+  if (!state.assetLibrary.objectImages) {
+    state.assetLibrary.objectImages = {};
+  }
+
+  // Pre-populate user-provided character images as "front" references
+  const userChars = state.userProvidedAssets?.characters ?? {};
+  for (const [name, imgPath] of Object.entries(userChars)) {
+    // Match case-insensitively against analysis characters
+    const matchedChar = analysis.characters.find(
+      c => c.name.toLowerCase() === name.toLowerCase()
+    );
+    if (matchedChar) {
+      const frontKey = `character:${matchedChar.name}:front`;
+      if (!state.generatedAssets[frontKey]) {
+        console.log(`[asset_generation] Using user-provided image for character "${matchedChar.name}" (front)`);
+        state.generatedAssets[frontKey] = imgPath;
+        if (!state.assetLibrary.characterImages[matchedChar.name]) {
+          state.assetLibrary.characterImages[matchedChar.name] = { front: "", angle: "" };
+        }
+        state.assetLibrary.characterImages[matchedChar.name].front = imgPath;
+      }
+    }
+  }
+
+  // Pre-populate user-provided object images
+  const userObjects = state.userProvidedAssets?.objects ?? {};
+  for (const [name, imgPath] of Object.entries(userObjects)) {
+    // Match case-insensitively against analysis objects
+    const matchedObj = (analysis.objects ?? []).find(
+      o => o.name.toLowerCase() === name.toLowerCase()
+    );
+    const objName = matchedObj?.name ?? name;
+    const objKey = `object:${objName}:front`;
+    if (!state.generatedAssets[objKey]) {
+      console.log(`[asset_generation] Using user-provided image for object "${objName}"`);
+      state.generatedAssets[objKey] = imgPath;
+      state.assetLibrary.objectImages[objName] = imgPath;
+    }
+  }
+
   // Build list of needed assets
   const neededAssets: string[] = [];
   for (const char of analysis.characters) {
@@ -777,6 +825,8 @@ For each character, generate TWO images:
 
 For each location, generate ONE image (call generateAsset with locationName).
 
+NOTE: Some characters and objects may already have user-provided reference images pre-populated in state.generatedAssets. These do NOT need generation — only generate assets that are listed in the "Assets still needed" list below. For characters with user-provided front images, you still need to generate their angle reference using the front image as referenceImagePath.
+
 IMPORTANT:
 - Check state.generatedAssets before generating — skip items that already have paths.
 - After EACH successful generation, call saveState to checkpoint progress.
@@ -803,7 +853,10 @@ Assets still needed: ${JSON.stringify(neededAssets)}`;
         state.generatedAssets[result.key] = result.path;
         // Update asset library
         if (!state.assetLibrary) {
-          state.assetLibrary = { characterImages: {}, locationImages: {} };
+          state.assetLibrary = { characterImages: {}, locationImages: {}, objectImages: {} };
+        }
+        if (!state.assetLibrary.objectImages) {
+          state.assetLibrary.objectImages = {};
         }
         if (params.characterName) {
           if (!state.assetLibrary.characterImages[params.characterName]) {
@@ -878,7 +931,7 @@ async function runFrameGenerationStage(
   // assetLibrary may have placeholder entries for imported runs — that's fine.
   // If completely missing, create an empty one so downstream code doesn't crash.
   if (!state.assetLibrary) {
-    state.assetLibrary = { characterImages: {}, locationImages: {} };
+    state.assetLibrary = { characterImages: {}, locationImages: {}, objectImages: {} };
   }
 
   const analysis = state.storyAnalysis;
@@ -922,6 +975,7 @@ IMPORTANT:
 - Pass dryRun=${options.dryRun} to generateFrame.
 - Use outputDir="${options.outputDir}".
 - Art style: "${analysis.artStyle}"
+- The asset library includes objectImages for any user-provided object/product references. The generateFrame tool automatically includes these as reference images when the shot's objectsPresent array lists them. Make sure to pass the full assetLibrary including objectImages.
 
 CROSS-SHOT CONTINUITY:
 - Generate frames IN SHOT ORDER within each scene (shot 1 first, then shot 2, etc.)
@@ -1239,7 +1293,7 @@ async function runShotGenerationStage(
     throw new Error("Shot generation requires storyAnalysis in state");
   }
   if (!state.assetLibrary) {
-    state.assetLibrary = { characterImages: {}, locationImages: {} };
+    state.assetLibrary = { characterImages: {}, locationImages: {}, objectImages: {} };
   }
 
   const analysis = state.storyAnalysis;
@@ -1663,6 +1717,10 @@ export async function runPipeline(
     state.awaitingUserReview = false;
     state.continueRequested = false;
   }
+
+  // Discover user-provided character and object reference images
+  const userAssets = discoverUserAssets(options.charactersDir, options.objectsDir);
+  state.userProvidedAssets = userAssets;
 
   // Stage loop
   const isGrok = options.videoBackend === "grok";

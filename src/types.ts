@@ -10,6 +10,11 @@ export interface Location {
   visualDescription: string;  // architecture, lighting, colors, atmosphere
 }
 
+export interface StoryObject {
+  name: string;
+  visualDescription: string;  // what the object looks like
+}
+
 export interface Shot {
   shotNumber: number;          // global shot number across entire video
   sceneNumber: number;         // which scene this belongs to
@@ -24,6 +29,7 @@ export interface Shot {
   soundEffects: string;
   cameraDirection: string;
   charactersPresent: string[];
+  objectsPresent: string[];
   location: string;
   continuousFromPrevious: boolean;
 }
@@ -44,12 +50,14 @@ export interface StoryAnalysis {
   artStyle: string;
   characters: Character[];
   locations: Location[];
+  objects: StoryObject[];
   scenes: Scene[];
 }
 
 export interface AssetLibrary {
   characterImages: Record<string, { front: string; angle: string }>;  // paths
   locationImages: Record<string, string>;                              // paths
+  objectImages: Record<string, string>;                                // name → path
 }
 
 export interface ArtifactVersion {
@@ -63,7 +71,7 @@ export interface ArtifactVersion {
 }
 
 export interface FrameReference {
-  type: "character" | "location" | "continuity";
+  type: "character" | "location" | "continuity" | "object";
   name: string;
   path: string;
 }
@@ -101,6 +109,8 @@ export interface PipelineOptions {
   reviewMode?: boolean;
   videoBackend?: "veo" | "comfy" | "grok";
   aspectRatio?: "16:9" | "9:16" | "1:1";
+  charactersDir?: string;
+  objectsDir?: string;
   onToolError?: (stageName: string, toolName: string, error: string) => void;
   onProgress?: (message: string) => void;
   onNameRun?: (name: string) => void;
@@ -120,11 +130,17 @@ export interface StageDecisionRecord {
   instructionCount: number;
 }
 
+export interface UserProvidedAssets {
+  characters: Record<string, string>;  // name → image path
+  objects: Record<string, string>;     // name → image path
+}
+
 export interface PipelineState {
   storyFile: string;
   outputDir: string;
   currentStage: string;
   completedStages: string[];
+  userProvidedAssets?: UserProvidedAssets;
   storyAnalysis: StoryAnalysis | null;
   assetLibrary: AssetLibrary | null;
   generatedAssets: Record<string, string>;        // { "character:Bolt:front": "path", ... } — item-level tracking

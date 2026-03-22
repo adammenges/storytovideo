@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { Command } from "commander";
 import { readFileSync } from "fs";
-import { resolve } from "path";
+import { resolve, dirname, join } from "path";
 import { loadState } from "./tools/state";
 import { setInterrupted } from "./signals";
 import type { PipelineOptions, PipelineState } from "./types";
@@ -49,6 +49,8 @@ program
   .option("--redo <stage>", "Redo a specific pipeline stage (clears data from that stage onward)")
   .option("--resume", "Resume from saved state", false)
   .option("--verbose", "Show detailed logs and Claude reasoning", false)
+  .option("--characters-dir <dir>", "Directory containing character reference images (default: characters/ next to story file)")
+  .option("--objects-dir <dir>", "Directory containing object/product reference images (default: objects/ next to story file)")
   .action(async (storyFile, options) => {
     try {
       // Validate story file exists
@@ -67,6 +69,15 @@ program
         process.exit(1);
       }
 
+      // Resolve character/object dirs relative to story file by default
+      const storyDir = dirname(storyPath);
+      const charactersDir = options.charactersDir
+        ? resolve(options.charactersDir)
+        : join(storyDir, "characters");
+      const objectsDir = options.objectsDir
+        ? resolve(options.objectsDir)
+        : join(storyDir, "objects");
+
       const pipelineOptions: PipelineOptions = {
         outputDir: options.outputDir,
         dryRun: options.dryRun,
@@ -76,6 +87,8 @@ program
         redo: options.redo,
         resume: options.resume,
         verbose: options.verbose,
+        charactersDir,
+        objectsDir,
       };
 
       console.log("Story to Video Pipeline");
