@@ -120,6 +120,7 @@ export {
   // Types
   type EditableClip,
   type EditableTrack,
+  type DuckingConfig,
   type TrackPairResult,
   type SplitResult,
   type AddClipOptions,

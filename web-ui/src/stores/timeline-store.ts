@@ -115,6 +115,8 @@ function ensureTracks(existing: EditableTrack[]): EditableTrack[] {
     muted: false,
     locked: false,
     volume: 1,
+    pan: 0,
+    solo: false,
   };
   return [...tracks, musicTrack];
 }

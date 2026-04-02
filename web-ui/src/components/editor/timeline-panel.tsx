@@ -3,6 +3,8 @@ import { ChevronDown, ChevronUp, GripHorizontal } from "lucide-react";
 import { CanvasTimeline } from "../timeline/canvas-timeline";
 import { KeyframeCurveEditor } from "../timeline/keyframe-curve-editor";
 import { TimelineToolbar } from "../timeline/timeline-toolbar";
+import { AudioMixerPanel } from "./audio-mixer-panel";
+import { DuckingConfigPopover } from "./ducking-config";
 import { useVideoEditorStore } from "../../stores/video-editor-store";
 import { Button } from "../tooscut-ui/button";
 import type { AnimatableProperty } from "../../lib/render-engine";
@@ -10,13 +12,22 @@ import type { AnimatableProperty } from "../../lib/render-engine";
 const CURVE_EDITOR_MIN_HEIGHT = 80;
 const CURVE_EDITOR_DEFAULT_HEIGHT = 200;
 const CURVE_EDITOR_MAX_HEIGHT = 600;
+const MIXER_MIN_HEIGHT = 120;
+const MIXER_DEFAULT_HEIGHT = 200;
+const MIXER_MAX_HEIGHT = 400;
 
 export function TimelinePanel() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(800);
   const [curveEditorVisible, setCurveEditorVisible] = useState(false);
   const [curveEditorHeight, setCurveEditorHeight] = useState(CURVE_EDITOR_DEFAULT_HEIGHT);
+  const [mixerHeight, setMixerHeight] = useState(MIXER_DEFAULT_HEIGHT);
+  const [duckingTrackId, setDuckingTrackId] = useState<string | null>(null);
   const resizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const mixerResizeDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  // Mixer visibility
+  const showMixer = useVideoEditorStore((s) => s.showMixer);
 
   // Get selected clip
   const selectedClipIds = useVideoEditorStore((s) => s.selectedClipIds);
@@ -85,6 +96,34 @@ export function TimelinePanel() {
     [curveEditorHeight],
   );
 
+  // Mixer resize handle drag
+  const handleMixerResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      mixerResizeDragRef.current = { startY: e.clientY, startHeight: mixerHeight };
+
+      const handleMouseMove = (ev: MouseEvent) => {
+        if (!mixerResizeDragRef.current) return;
+        const delta = ev.clientY - mixerResizeDragRef.current.startY;
+        const newHeight = Math.max(
+          MIXER_MIN_HEIGHT,
+          Math.min(MIXER_MAX_HEIGHT, mixerResizeDragRef.current.startHeight + delta),
+        );
+        setMixerHeight(newHeight);
+      };
+
+      const handleMouseUp = () => {
+        mixerResizeDragRef.current = null;
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [mixerHeight],
+  );
+
   // Show curve editor if there are keyframed properties
   const hasKeyframes = keyframedProperties.length > 0;
 
@@ -92,6 +131,31 @@ export function TimelinePanel() {
     <div ref={containerRef} className="flex h-full w-full flex-col overflow-hidden">
       {/* Timeline toolbar */}
       <TimelineToolbar />
+
+      {/* Audio mixer panel */}
+      {showMixer && (
+        <div
+          className="shrink-0 overflow-hidden border-b border-neutral-700"
+          style={{ height: mixerHeight }}
+        >
+          <AudioMixerPanel onDuckingClick={(trackId) => setDuckingTrackId(trackId)} />
+          {/* Resize handle */}
+          <div
+            className="flex h-1.5 cursor-row-resize items-center justify-center bg-neutral-800 hover:bg-neutral-700 transition-colors"
+            onMouseDown={handleMixerResizeMouseDown}
+          >
+            <div className="h-px w-8 bg-neutral-600" />
+          </div>
+        </div>
+      )}
+
+      {/* Ducking config popover */}
+      {duckingTrackId && (
+        <DuckingConfigPopover
+          trackId={duckingTrackId}
+          onClose={() => setDuckingTrackId(null)}
+        />
+      )}
 
       {/* Main timeline area */}
       <div className="relative flex-1 min-h-0">

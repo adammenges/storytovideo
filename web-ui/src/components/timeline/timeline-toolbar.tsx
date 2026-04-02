@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { MousePointer2, Scissors, Minus, Plus } from "lucide-react";
+import { MousePointer2, Scissors, Minus, Plus, SlidersHorizontal } from "lucide-react";
 import { Toggle } from "../tooscut-ui/toggle";
 import { Slider } from "../tooscut-ui/slider";
 import { Button } from "../tooscut-ui/button";
@@ -16,6 +16,8 @@ export function TimelineToolbar() {
   const setZoom = useVideoEditorStore((s) => s.setZoom);
   const activeTool = useVideoEditorStore((s) => s.activeTool);
   const setActiveTool = useVideoEditorStore((s) => s.setActiveTool);
+  const showMixer = useVideoEditorStore((s) => s.showMixer);
+  const setShowMixer = useVideoEditorStore((s) => s.setShowMixer);
 
   // Zoom slider uses a log scale for more intuitive feel
   // slider value 0..100 maps to MIN_ZOOM..MAX_ZOOM exponentially
@@ -79,6 +81,24 @@ export function TimelineToolbar() {
           </TooltipTrigger>
           <TooltipContent side="bottom">
             <p>Razor Tool (C)</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <div className="mx-1 h-4 w-px bg-neutral-700" />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Toggle
+              size="sm"
+              className="h-6 w-6 p-0"
+              pressed={showMixer}
+              onPressedChange={() => setShowMixer(!showMixer)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+            </Toggle>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Audio Mixer (M)</p>
           </TooltipContent>
         </Tooltip>
 

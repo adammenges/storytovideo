@@ -57,6 +57,25 @@ export interface TrimClipOptions {
 }
 
 /**
+ * Sidechain ducking configuration for an audio track.
+ * When enabled, this track's volume is automatically reduced
+ * whenever audio is present on the trigger track.
+ */
+export interface DuckingConfig {
+  enabled: boolean;
+  /** ID of the track whose audio triggers ducking on this track */
+  triggerTrackId: string;
+  /** Amount to reduce volume in dB (negative, e.g., -12) */
+  duckAmountDb: number;
+  /** Time in ms to ramp down to ducked level */
+  attackMs: number;
+  /** Time in ms to ramp back up after trigger stops */
+  releaseMs: number;
+  /** Minimum signal level on trigger track to activate (0-1) */
+  threshold: number;
+}
+
+/**
  * A track in the timeline.
  *
  * Tracks are always created in pairs: one video track and one audio track.
@@ -75,8 +94,14 @@ export interface EditableTrack {
   pairedTrackId: string;
   muted: boolean;
   locked: boolean;
-  /** Volume level for audio tracks (0-1) */
+  /** Volume level for audio tracks (0-2, where 1 = 100%) */
   volume: number;
+  /** Stereo pan position (-1 = full left, 0 = center, +1 = full right) */
+  pan: number;
+  /** When true, only soloed tracks are audible */
+  solo: boolean;
+  /** Optional sidechain ducking configuration */
+  ducking?: DuckingConfig;
 }
 
 /**
@@ -135,6 +160,8 @@ export function addTrackPair(
     muted: false,
     locked: false,
     volume: 1,
+    pan: 0,
+    solo: false,
   };
 
   const audioTrack: EditableTrack = {
@@ -146,6 +173,8 @@ export function addTrackPair(
     muted: false,
     locked: false,
     volume: 1,
+    pan: 0,
+    solo: false,
   };
 
   return {
@@ -272,7 +301,7 @@ export function reorderTrackPair(
 export function updateTrack(
   tracks: readonly EditableTrack[],
   trackId: string,
-  updates: Partial<Pick<EditableTrack, "name" | "muted" | "locked" | "volume">>,
+  updates: Partial<Pick<EditableTrack, "name" | "muted" | "locked" | "volume" | "pan" | "solo" | "ducking">>,
 ): EditableTrack[] {
   return tracks.map((t) => (t.id === trackId ? { ...t, ...updates } : t));
 }

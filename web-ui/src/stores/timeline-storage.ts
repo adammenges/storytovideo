@@ -6,6 +6,8 @@ export interface TimelineState {
   clips: EditorClip[];
   crossTransitions: CrossTransitionRef[];
   settings: ProjectSettings;
+  /** Master output volume (0-1). Defaults to 1 if absent in older projects. */
+  masterVolume?: number;
 }
 
 export interface TimelineStorage {

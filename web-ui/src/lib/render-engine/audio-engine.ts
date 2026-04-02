@@ -111,6 +111,13 @@ export interface AudioTrackState {
   pan: number;
   mute: boolean;
   solo: boolean;
+  ducking?: {
+    triggerTrackId: string;
+    duckAmountDb: number;
+    attackMs: number;
+    releaseMs: number;
+    threshold: number;
+  };
 }
 
 /**

@@ -50,6 +50,8 @@ interface TimelineTrack {
   pairedTrackId: string;
   muted: boolean;
   locked: boolean;
+  solo: boolean;
+  volume: number;
 }
 
 import type {
@@ -337,6 +339,7 @@ export function TimelineStage({
   const batchTrimClips = useVideoEditorStore((s) => s.batchTrimClips);
   const toggleTrackMuted = useVideoEditorStore((s) => s.toggleTrackMuted);
   const toggleTrackLocked = useVideoEditorStore((s) => s.toggleTrackLocked);
+  const toggleTrackSolo = useVideoEditorStore((s) => s.toggleTrackSolo);
   const activeTool = useVideoEditorStore((s) => s.activeTool);
   const splitClipAtTime = useVideoEditorStore((s) => s.splitClipAtTime);
   const setClipTransitionIn = useVideoEditorStore((s) => s.setClipTransitionIn);
@@ -366,6 +369,8 @@ export function TimelineStage({
         pairedTrackId: t.pairedTrackId,
         muted: t.muted,
         locked: t.locked,
+        solo: t.solo ?? false,
+        volume: t.volume,
       })),
       ...audioTracksFiltered.map((t) => ({
         id: t.id,
@@ -376,6 +381,8 @@ export function TimelineStage({
         pairedTrackId: t.pairedTrackId,
         muted: t.muted,
         locked: t.locked,
+        solo: t.solo ?? false,
+        volume: t.volume,
       })),
     ];
   }, [tracks]);
@@ -2535,9 +2542,13 @@ export function TimelineStage({
 
           const buttonSize = 24;
           const buttonIconSize = 16;
-          const buttonY = y + TRACK_HEIGHT / 2 - buttonSize / 2;
-          const muteButtonX = TRACK_HEADER_WIDTH - buttonSize * 2 - 16;
+          const isAudio = track.type === "audio";
+
+          // Layout buttons from right: Lock, Mute, (Solo for audio)
           const lockButtonX = TRACK_HEADER_WIDTH - buttonSize - 8;
+          const muteButtonX = lockButtonX - buttonSize - 4;
+          const soloButtonX = muteButtonX - buttonSize - 4;
+          const buttonY = isAudio ? y + 14 : y + TRACK_HEIGHT / 2 - buttonSize / 2;
 
           const MuteIcon =
             track.type === "video"
@@ -2562,12 +2573,41 @@ export function TimelineStage({
                 strokeWidth={1}
               />
               <Text
-                x={12}
-                y={y + TRACK_HEIGHT / 2 - 6}
+                x={8}
+                y={isAudio ? y + 16 : y + TRACK_HEIGHT / 2 - 6}
                 text={track.name}
-                fontSize={12}
+                fontSize={11}
                 fill={COLORS.headerText}
+                width={isAudio ? soloButtonX - 12 : muteButtonX - 12}
+                ellipsis
               />
+
+              {/* Solo button (audio tracks only) */}
+              {isAudio && (
+                <Group
+                  x={soloButtonX}
+                  y={buttonY}
+                  onClick={() => toggleTrackSolo(track.id)}
+                  onTap={() => toggleTrackSolo(track.id)}
+                >
+                  <Rect
+                    width={buttonSize}
+                    height={buttonSize}
+                    fill={track.solo ? COLORS.soloActive : COLORS.soloInactive}
+                    cornerRadius={4}
+                  />
+                  <Text
+                    x={0}
+                    y={5}
+                    width={buttonSize}
+                    text="S"
+                    fontSize={12}
+                    fontStyle="bold"
+                    fill="#ffffff"
+                    align="center"
+                  />
+                </Group>
+              )}
 
               {/* Mute button */}
               <Group
@@ -2600,6 +2640,35 @@ export function TimelineStage({
                 />
                 <LockIcon x={buttonSize / 2 - 8} y={buttonSize / 2 - 8} size={buttonIconSize} />
               </Group>
+
+              {/* Volume indicator bar (audio tracks only) */}
+              {isAudio && (
+                <Group>
+                  <Rect
+                    x={8}
+                    y={y + 48}
+                    width={TRACK_HEADER_WIDTH - 16}
+                    height={4}
+                    fill={COLORS.volumeBarBg}
+                    cornerRadius={2}
+                  />
+                  <Rect
+                    x={8}
+                    y={y + 48}
+                    width={Math.min(track.volume, 1) * (TRACK_HEADER_WIDTH - 16)}
+                    height={4}
+                    fill={COLORS.volumeBar}
+                    cornerRadius={2}
+                  />
+                  <Text
+                    x={8}
+                    y={y + 56}
+                    text={`${Math.round(track.volume * 100)}%`}
+                    fontSize={9}
+                    fill="#888888"
+                  />
+                </Group>
+              )}
             </Group>
           );
         })}

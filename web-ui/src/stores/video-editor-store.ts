@@ -30,6 +30,7 @@ import {
   type CrossTransitionRef,
   type CrossTransitionType,
   type AudioEffectsParams,
+  type DuckingConfig,
   addTrackPair,
   removeTrackPair,
   addClip,
@@ -190,6 +191,10 @@ interface VideoEditorState {
   // Clipboard (not tracked by undo/redo)
   clipboard: EditorClip[];
 
+  // Audio mixing
+  masterVolume: number;
+  showMixer: boolean;
+
   // View state
   zoom: number;
   scrollX: number;
@@ -241,6 +246,12 @@ interface VideoEditorState {
   removeTrack: (trackId: string) => void;
   toggleTrackMuted: (trackId: string) => void;
   toggleTrackLocked: (trackId: string) => void;
+  setTrackVolume: (trackId: string, volume: number) => void;
+  setTrackPan: (trackId: string, pan: number) => void;
+  toggleTrackSolo: (trackId: string) => void;
+  setTrackDucking: (trackId: string, config: DuckingConfig | undefined) => void;
+  setMasterVolume: (volume: number) => void;
+  setShowMixer: (show: boolean) => void;
 
   // Actions - Clips
   addClipToTrack: (clip: NewClipInput) => string;
@@ -622,7 +633,7 @@ function resolveOverlaps(
 /** State fields tracked by undo/redo history */
 type TrackedState = Pick<
   VideoEditorState,
-  "tracks" | "clips" | "crossTransitions" | "assets" | "settings"
+  "tracks" | "clips" | "crossTransitions" | "assets" | "settings" | "masterVolume"
 >;
 
 export const useVideoEditorStore = create<VideoEditorState>()(
@@ -648,6 +659,9 @@ export const useVideoEditorStore = create<VideoEditorState>()(
         selectedTransition: null,
         selectedCrossTransition: null,
         clipboard: [],
+
+        masterVolume: 1,
+        showMixer: false,
 
         zoom: 50,
         scrollX: 0,
@@ -824,6 +838,43 @@ export const useVideoEditorStore = create<VideoEditorState>()(
               track.id === trackId ? { ...track, locked: !track.locked } : track,
             ),
           })),
+
+        setTrackVolume: (trackId, volume) =>
+          set((state) => ({
+            tracks: state.tracks.map((track) =>
+              track.id === trackId
+                ? { ...track, volume: Math.max(0, Math.min(2, volume)) }
+                : track,
+            ),
+          })),
+
+        setTrackPan: (trackId, pan) =>
+          set((state) => ({
+            tracks: state.tracks.map((track) =>
+              track.id === trackId
+                ? { ...track, pan: Math.max(-1, Math.min(1, pan)) }
+                : track,
+            ),
+          })),
+
+        toggleTrackSolo: (trackId) =>
+          set((state) => ({
+            tracks: state.tracks.map((track) =>
+              track.id === trackId ? { ...track, solo: !(track.solo ?? false) } : track,
+            ),
+          })),
+
+        setTrackDucking: (trackId, config) =>
+          set((state) => ({
+            tracks: state.tracks.map((track) =>
+              track.id === trackId ? { ...track, ducking: config } : track,
+            ),
+          })),
+
+        setMasterVolume: (volume) =>
+          set({ masterVolume: Math.max(0, Math.min(1, volume)) }),
+
+        setShowMixer: (show) => set({ showMixer: show }),
 
         // Clip actions
         addClipToTrack: (clipData) => {
@@ -1941,13 +1992,15 @@ export const useVideoEditorStore = create<VideoEditorState>()(
           crossTransitions: state.crossTransitions,
           assets: state.assets,
           settings: state.settings,
+          masterVolume: state.masterVolume,
         }),
         equality: (pastState, currentState) =>
           pastState.tracks === currentState.tracks &&
           pastState.clips === currentState.clips &&
           pastState.crossTransitions === currentState.crossTransitions &&
           pastState.assets === currentState.assets &&
-          pastState.settings === currentState.settings,
+          pastState.settings === currentState.settings &&
+          pastState.masterVolume === currentState.masterVolume,
       },
     ),
   ),

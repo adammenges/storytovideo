@@ -106,9 +106,18 @@ export function useAudioEngine() {
       .map((track) => ({
         id: track.id,
         volume: track.volume,
-        pan: 0,
+        pan: track.pan ?? 0,
         mute: track.muted,
-        solo: false,
+        solo: track.solo ?? false,
+        ducking: track.ducking?.enabled
+          ? {
+              triggerTrackId: track.ducking.triggerTrackId,
+              duckAmountDb: track.ducking.duckAmountDb,
+              attackMs: track.ducking.attackMs,
+              releaseMs: track.ducking.releaseMs,
+              threshold: track.ducking.threshold,
+            }
+          : undefined,
       }));
 
     const timelineState: AudioTimelineState = {
@@ -119,6 +128,15 @@ export function useAudioEngine() {
 
     engine.setTimeline(timelineState);
   }, [clips, tracks, isWasmReady]);
+
+  // Sync master volume
+  const masterVolume = useVideoEditorStore((state) => state.masterVolume);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (engine && isWasmReady) {
+      engine.setMasterVolume(masterVolume);
+    }
+  }, [masterVolume, isWasmReady]);
 
   // Sync playback state
   useEffect(() => {

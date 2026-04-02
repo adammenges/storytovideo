@@ -217,6 +217,12 @@ export function CanvasTimeline() {
         setActiveTool("razor");
       }
 
+      // M: Toggle audio mixer
+      if ((e.key === "m" || e.key === "M") && !e.metaKey && !e.ctrlKey) {
+        const { showMixer, setShowMixer } = useVideoEditorStore.getState();
+        setShowMixer(!showMixer);
+      }
+
       // Home: Jump to start
       if (e.key === "Home") {
         e.preventDefault();

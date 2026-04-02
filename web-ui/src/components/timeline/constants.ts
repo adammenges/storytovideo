@@ -56,4 +56,8 @@ export const COLORS = {
   transitionOverlay: "rgba(140, 0, 140, 0.50)",
   transitionHandle: "#ffffff",
   transitionDropZone: "rgba(255, 200, 50, 0.3)",
+  soloActive: "#eab308",
+  soloInactive: "#374151",
+  volumeBar: "#5cb85c",
+  volumeBarBg: "#374151",
 };
